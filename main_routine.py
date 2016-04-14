@@ -23,6 +23,7 @@ from oauth2client import tools
 import base64
 import email
 import re
+import csv
 
 # -----------------------------------------------------------------
 # 0.5. define scope and API key
@@ -134,41 +135,68 @@ for label in label_list:
             if reg_results: 
                 tag_line = line
                 break
-        
         msg_date = tag_line[ 6 : len( tag_line ) ]
 
         # extract the order number 
         reg_pat= 'confirmation number|order number|order #'
-        for line in email_text:
-            reg_results = re.search( reg_pat, line, re.I )
+        for i in range( 0, len( email_text ) ):
+            reg_results = re.search( reg_pat, email_text[ i ], re.I )
             if reg_results: 
-                tag_line = line
+                tag_line = email_text[ i ]
                 break
-        if tag_line:
-            line_parts = tag_line.split( )
-            order_num = line_parts[ -1 ]
+        if 'tag_line' in globals():
+            reg_results = re.search( r'\d', tag_line )
+            if reg_results:
+                line_parts = tag_line.split()
+                order_num = line_parts[ -1 ]
+            else:
+                tag_line = email_text[ i+1 ]
+                order_num = tag_line
+            del tag_line 
         else: 
             order_num = 'non-fetched'
-        
+        # cleaning of the order_num
+        order_num = re.sub( r'\#|\*', "", order_num)
+                 
         # extract the order total
-        reg_pat = '^total|order total|total order|total amount'
-        for line in email_text:
-            reg_results = re.search( r'^total|total:', line, re.I )
+        reg_pat = 'order total|total order|^total|total amount|card to charge.'
+        for i in range( 0, len( email_text ) ):
+            reg_results = re.search( reg_pat, email_text[ i ], re.I )
             if reg_results: 
-                tag_line = line
-        if tag_line:
-            line_parts = tag_line.split( )
-            order_total = line_parts[ -1 ]
+                tag_line = email_text[ i ]
+                break
+        if 'tag_line' in globals():
+            if re.search( r'tax', tag_line, re.I ):
+                tag_line_next = email_text[ i+1 ]
+                line_parts = tag_line_next.split()
+                order_total = line_parts[ -1 ] 
+            else:
+                if re.search( r'\d', tag_line ):
+                    line_parts = tag_line.split()
+                    order_total = line_parts[ -1 ]
+                else:
+                    tag_line = email_text[ i+1 ]
+                    order_total = tag_line
+            del tag_line 
         else: 
-            order_total = 'non-fetched'
+            order_total = 'non-fetched'    
+        # cleaning of the order_total
+        order_total = re.sub( r'\$|\*', "", order_total)
         
-        # summary line in dict
-        summary_line = { 'label':str( label ), 'date':msg_date, 'order#':order_num, 'total':order_total }
-        # summary line in list        
-        #summary_line = [ label, msg_date, order_num, order_total ]        
+        # summary line in dict style
+        #summary_line = { 'label':str( label ), 'date':msg_date, 'order#':order_num, 'total':order_total }
+        # summary line in list style       
+        summary_line = [ label, msg_date, order_num, order_total ]        
         # append each summary_line to summary_table        
-        summary_table.append( summary_line )                    
-                
+        summary_table.append( summary_line )      
+
+
+with open( "preview.csv", "wb" ) as myfile:
+    writer = csv.writer( myfile )
+    writer.writerow(['label', 'date', 'order#', 'total' ] )
+    writer.writerows( summary_table )
+
+
                 
                 
                 
