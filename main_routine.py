@@ -1,5 +1,16 @@
 #!/usr/bin/env python
 
+# -*- coding: utf-8 -*-
+"""
+@script name: main.py 
+@author: Leyang Feng
+@date last updated: 
+@purpose: 
+@note: 
+@TODO:
+
+"""
+
 # -----------------------------------------------------------------
 # 0. standard import
 from __future__ import print_function
@@ -48,7 +59,7 @@ gmail = discovery.build( 'gmail', 'v1', http=http )
 
 # -----------------------------------------------------------------
 # 2.5. define user_id 
-user_id = 'phly.figlio@gmail.com'
+user_id = 'yfcui2009@gmail.com'
 
 # -----------------------------------------------------------------
 # 3. retrieve label_list
@@ -67,18 +78,23 @@ label_list = user_label_list
 
 # -----------------------------------------------------------------
 # 4. retrieve threads under each label 
+
+# empty list for later storage
+summary_table = []
+
+# looping through each label 
 for label in label_list: 
     
     query_mess = 'label:'+ label 
     response = gmail.users().threads().list( userId = user_id,  q = query_mess ).execute()
     threads = []
     if 'threads' in response:
-        threads.extend(response['threads'])
+        threads.extend( response[ 'threads' ] )
 
     while 'nextPageToken' in response:
-        page_token = response['nextPageToken']
-        esponse = gmail.users().threads().list(userId=user_id, q = query_mess, pageToken=page_token).execute()
-        threads.extend(response['threads'])
+        page_token = response[ 'nextPageToken' ]
+        response = gmail.users().threads().list( userId = user_id, q = query_mess, pageToken = page_token ).execute()
+        threads.extend( response[ 'threads' ] )
       
     # ------------------------------------------------------
     # 5. retrieve thread data in each thread 
@@ -88,11 +104,11 @@ for label in label_list:
         msg = tdata[ 'messages' ][ 0 ]
         msg_id = msg[ 'id' ]
       
-        msg = msg[ 'payload' ]
-        for header in msg[ 'headers' ]:
-            if header[ 'name' ] == 'Date':
-                msg_date = header[ 'value' ]
-                break
+        #msg = msg[ 'payload' ]
+        #for header in msg[ 'headers' ]:
+        #    if header[ 'name' ] == 'Date':
+        #        msg_date = header[ 'value' ]
+        #        break
       
         # ----------------------------------------------------
         # 6. retrieve the message using msg_id 
@@ -106,14 +122,61 @@ for label in label_list:
         # 7. walk through different parts in MIME class then extract the text part 
         for part in mime_msg.walk():
             if part.get_content_type() == 'text/plain':
-                mytext = part.get_payload()
+                email_text = part.get_payload()
                 break
-      
-        for line in mytext: 
-            line = line.rstrip()
-            s = re.findall(r'order(.*)', line, re.I )  
-            print( s )            
-            #if re.search('order', line, re.I ):
-            #    print ( line )
-          
-          
+        
+        # extract desired info using regular expression     
+        email_text = email_text.splitlines()
+        
+        # extract date 
+        for line in email_text:
+            reg_results = re.search( r'^Date', line )
+            if reg_results: 
+                tag_line = line
+                break
+        
+        msg_date = tag_line[ 6 : len( tag_line ) ]
+
+        # extract the order number 
+        reg_pat= 'confirmation number|order number|order #'
+        for line in email_text:
+            reg_results = re.search( reg_pat, line, re.I )
+            if reg_results: 
+                tag_line = line
+                break
+        if tag_line:
+            line_parts = tag_line.split( )
+            order_num = line_parts[ -1 ]
+        else: 
+            order_num = 'non-fetched'
+        
+        # extract the order total
+        reg_pat = '^total|order total|total order|total amount'
+        for line in email_text:
+            reg_results = re.search( r'^total|total:', line, re.I )
+            if reg_results: 
+                tag_line = line
+        if tag_line:
+            line_parts = tag_line.split( )
+            order_total = line_parts[ -1 ]
+        else: 
+            order_total = 'non-fetched'
+        
+        # summary line in dict
+        summary_line = { 'label':str( label ), 'date':msg_date, 'order#':order_num, 'total':order_total }
+        # summary line in list        
+        #summary_line = [ label, msg_date, order_num, order_total ]        
+        # append each summary_line to summary_table        
+        summary_table.append( summary_line )                    
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
