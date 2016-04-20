@@ -77,6 +77,9 @@ else:
 
 label_list = user_label_list
 
+print( label_list )
+del label_list[ 0 ]
+del label_list[ 3 ]
 # -----------------------------------------------------------------
 # 4. retrieve threads under each label 
 
@@ -104,13 +107,7 @@ for label in label_list:
         # only retrieve the first message in a thread      
         msg = tdata[ 'messages' ][ 0 ]
         msg_id = msg[ 'id' ]
-      
-        #msg = msg[ 'payload' ]
-        #for header in msg[ 'headers' ]:
-        #    if header[ 'name' ] == 'Date':
-        #        msg_date = header[ 'value' ]
-        #        break
-      
+     
         # ----------------------------------------------------
         # 6. retrieve the message using msg_id 
         message = gmail.users().messages().get(userId = user_id, id = msg_id, format = 'raw' ).execute()
@@ -122,27 +119,33 @@ for label in label_list:
         # ----------------------------------------------------
         # 7. walk through different parts in MIME class then extract the text part 
         for part in mime_msg.walk():
-            if part.get_content_type() == 'text/plain':
-                email_text = part.get_payload()
+            if part.get_content_type() == 'text/html':
+                email_html = part.get_payload()
                 break
-        
+            
         # extract desired info using regular expression     
-        email_text = email_text.splitlines()
+        email_html = email_html.splitlines() 
         
         # extract date 
-        for line in email_text:
-            reg_results = re.search( r'^Date', line )
+        #for line in email_text:
+        for line in email_html:
+            #reg_results = re.search( r'Date', line, re.I )            
+            reg_results = re.search( r'Date.*<', line )
             if reg_results: 
-                tag_line = line
                 break
-        msg_date = tag_line[ 6 : len( tag_line ) ]
-
+        #msg_date = tag_line[ 6 : len( tag_line ) ]       
+        msg_date = reg_results.group()[ 6 : len( reg_results.group() ) - 1 ]
+        del reg_results
+        
         # extract the order number 
         reg_pat= 'confirmation number|order number|order #'
-        for i in range( 0, len( email_text ) ):
-            reg_results = re.search( reg_pat, email_text[ i ], re.I )
+        #for i in range( 0, len( email_text ) ):
+        for i in range( 0, len( email_html ) ): 
+            #reg_results = re.search( reg_pat, email_text[ i ], re.I )
+            reg_results = re.search( reg_pat, email_html[ i ], re.I )
             if reg_results: 
-                tag_line = email_text[ i ]
+                tag_line = email_html[ i ]
+                #tag_line = email_text[ i ]
                 break
         if 'tag_line' in globals():
             reg_results = re.search( r'\d', tag_line )
@@ -150,38 +153,36 @@ for label in label_list:
                 line_parts = tag_line.split()
                 order_num = line_parts[ -1 ]
             else:
-                tag_line = email_text[ i+1 ]
+                tag_line = email_html[ i+1 ]
                 order_num = tag_line
             del tag_line 
         else: 
             order_num = 'non-fetched'
         # cleaning of the order_num
         order_num = re.sub( r'\#|\*', "", order_num)
+        del reg_results
                  
         # extract the order total
-        reg_pat = 'order total|total order|^total|total amount|card to charge.'
-        for i in range( 0, len( email_text ) ):
-            reg_results = re.search( reg_pat, email_text[ i ], re.I )
+        #reg_pat = 'order total|total order|^total|total amount|card to charge.|total charge'
+        reg_pat = '>.*' + 'order total|total order|^total|total amount|card to charge.|total charge' + '.*<'
+        #reg_pat = r'>.*total charge.*<'        
+        for i in range( 0, len( email_html ) ):
+            reg_results = re.search( reg_pat, email_html[ i ], re.I )
             if reg_results: 
-                tag_line = email_text[ i ]
                 break
+        tag_line = reg_results.group() 
         if 'tag_line' in globals():
-            if re.search( r'tax', tag_line, re.I ):
-                tag_line_next = email_text[ i+1 ]
-                line_parts = tag_line_next.split()
-                order_total = line_parts[ -1 ] 
-            else:
-                if re.search( r'\d', tag_line ):
-                    line_parts = tag_line.split()
-                    order_total = line_parts[ -1 ]
-                else:
-                    tag_line = email_text[ i+1 ]
-                    order_total = tag_line
-            del tag_line 
+            if re.search( r'\d', tag_line ):
+                order_total = re.search( r'\d', tag_line ).group()
+            else: 
+                reg_results = re.search( r'>[0-9].*[0-9]<', email_html[ i+1 ] )
+                order_total = reg_results.group() 
         else: 
-            order_total = 'non-fetched'    
+            order_total = 'non-fetched'     
+        del tag_line 
+        del reg_results
         # cleaning of the order_total
-        order_total = re.sub( r'\$|\*', "", order_total)
+        order_total = re.sub( r'\$|\*|>|<', "", order_total)
         
         # summary line in dict style
         #summary_line = { 'label':str( label ), 'date':msg_date, 'order#':order_num, 'total':order_total }
