@@ -136,9 +136,13 @@ for label in label_list:
             reg_results = re.search( r'^Date', line )
             if reg_results: 
                 tag_line = line
+                del reg_results
                 break
-        
-        msg_date = tag_line[ 6 : len( tag_line ) ]
+        if 'tag_line' in globals(): 
+            msg_date = tag_line[ 6 : len( tag_line ) ]
+            del tag_line
+        else: 
+            msg_date = 'non-fetched'
 
         # extract the order number 
         reg_pat= 'confirmation number|order number|order #'
@@ -146,33 +150,47 @@ for label in label_list:
             reg_results = re.search( reg_pat, line, re.I )
             if reg_results: 
                 tag_line = line
+                del reg_results
                 break
-        if tag_line:
+        if 'tag_line' in globals():
             line_parts = tag_line.split( )
             order_num = line_parts[ -1 ]
+            print( tag_line )            
+            del tag_line
         else: 
             order_num = 'non-fetched'
+        # cleaning of the order_num
+        order_num = re.sub( r'\#|\*', "", order_num )
         
         # extract the order total
-        reg_pat = '^total|order total|total order|total amount'
+        reg_pat = '^total|order total|total order|total amountcard to charge|total charge'
         for line in email_text:
-            reg_results = re.search( r'^total|total:', line, re.I )
+            reg_results = re.search( reg_pat, line, re.I )
             if reg_results: 
                 tag_line = line
-        if tag_line:
+                del reg_results
+                break
+        if 'tag_line' in globals():
             line_parts = tag_line.split( )
             order_total = line_parts[ -1 ]
+            print( tag_line )            
+            del tag_line
         else: 
             order_total = 'non-fetched'
+        # cleaning of the order_total
+        order_total = re.sub( r'\$|\*|>|<', "", order_total )
         
         # summary line in dict
-        summary_line = { 'label':str( label ), 'date':msg_date, 'order#':order_num, 'total':order_total }
+        #summary_line = { 'label':str( label ), 'date':msg_date, 'order#':order_num, 'total':order_total }
         # summary line in list        
-        #summary_line = [ label, msg_date, order_num, order_total ]        
+        summary_line = [ label, msg_date, order_num, order_total ]        
         # append each summary_line to summary_table        
         summary_table.append( summary_line )                    
                 
-                
+with open( "preview.csv", "wb" ) as myfile:
+    writer = csv.writer( myfile )
+    writer.writerow(['label', 'date', 'order#', 'total' ] )
+    writer.writerows( summary_table )
                 
                 
                 
